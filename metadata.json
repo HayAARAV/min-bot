@@ -1,0 +1,9 @@
+{
+  "name": "Min bot 18feb",
+  "description": "A high-performance Crypto Airdrop Mining Platform with a 5-level referral system, task management, and integrated ads.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
