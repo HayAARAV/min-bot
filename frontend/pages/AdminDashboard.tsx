@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Users, Settings, BarChart3, CreditCard, CheckCircle, XCircle, Save, UserPlus, Newspaper, Zap, Plus, Trash2, CheckSquare, Copy, Trophy
 } from 'lucide-react';
@@ -8,15 +8,27 @@ import { Currency } from '../types';
 interface AdminDashboardProps { store: any; }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ store }) => {
-  const { config, setConfig, allUsers, setAllUsers, withdrawals, setWithdrawals, news, setNews, registerNewUser, tasks, setTasks, getRecursiveDownlineCount } = store;
+  const { config, setConfig, allUsers, setAllUsers, news, setNews, registerNewUser, tasks, setTasks, getRecursiveDownlineCount, api } = store;
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [adminTab, setAdminTab] = useState<'stats' | 'users' | 'withdrawals' | 'settings' | 'sim' | 'news' | 'airdrop' | 'tasks'>('stats');
   const [withdrawalView, setWithdrawalView] = useState<'pending' | 'history'>('pending');
   const [formData, setFormData] = useState({ ...config });
   const [newNews, setNewNews] = useState({ title: '', content: '' });
   const [newTask, setNewTask] = useState({ title: '', description: '', link: '', rewards: { coin: 0, usd: 0, diamond: 0, speed: 0 } });
-  const [simData, setSimData] = useState({ username: 'test_user', telegramId: '100200300', fullName: 'Simulated Referrer', sponsorId: store.user.telegramId });
+  const [simData, setSimData] = useState({ username: 'test_user', telegramId: '100200300', fullName: 'Simulated Referrer', sponsorId: store.user?.telegramId || '' });
   const [activeWithdrawal, setActiveWithdrawal] = useState<any>(null);
   const [withdrawalRemark, setWithdrawalRemark] = useState('');
+
+  // Load admin data from backend on mount
+  useEffect(() => {
+    if (!api) return;
+    // Load users
+    api.get('/api/admin/users').then(({ data }: any) => setAllUsers(data)).catch(() => {});
+    // Load all withdrawals
+    api.get('/api/admin/withdrawals').then(({ data }: any) => setWithdrawals(data)).catch(() => {});
+    // Load tasks
+    api.get('/api/admin/tasks').then(({ data }: any) => setTasks(data.map((t: any) => ({ id: t._id, ...t })))).catch(() => {});
+  }, [api]);
 
   const leaderboardUsers = useMemo(() => {
     return [...allUsers]
@@ -25,8 +37,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ store }) => {
   }, [allUsers]);
 
   const handleSaveConfig = () => {
-    setConfig(formData);
-    alert('Settings synchronized globally!');
+    setConfig(formData); // calls backend via store
+    alert('Settings saved to backend!');
   };
 
   const addNews = () => {
@@ -36,52 +48,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ store }) => {
     setNewNews({ title: '', content: '' });
   };
 
-  const addTask = () => {
-    if (!newTask.title || !newTask.link) return;
-    const item = { id: 't_' + Date.now(), ...newTask, isCompleted: false };
-    setTasks([...tasks, item]);
-    setNewTask({ title: '', description: '', link: '', rewards: { coin: 0, usd: 0, diamond: 0, speed: 0 } });
+  const addTask = async () => {
+    if (!newTask.title) return alert('Enter task title');
+    try {
+      const { data } = await api.post('/api/admin/tasks', newTask);
+      setTasks([...tasks, { id: data._id, ...data }]);
+      setNewTask({ title: '', description: '', link: '', rewards: { coin: 0, usd: 0, diamond: 0, speed: 0 } });
+    } catch (e: any) { alert(e.response?.data?.error || 'Error creating task'); }
   };
 
-  const finalizeWithdrawal = (status: 'APPROVED' | 'REJECTED') => {
+  const finalizeWithdrawal = async (status: 'APPROVED' | 'REJECTED') => {
     if (!activeWithdrawal) return;
-    
-    setWithdrawals((prev: any) => prev.map((w: any) => 
-        w.id === activeWithdrawal.id ? { ...w, status, remarks: withdrawalRemark } : w
-    ));
-
-    if (status === 'REJECTED') {
-      const refundUsd = activeWithdrawal.amountUsd;
-      const refundDiamonds = activeWithdrawal.feeAmount || 0;
-
-      setAllUsers((prev: any) => prev.map((u: any) => {
-          if (u.id === activeWithdrawal.userId) {
-            const usdLog = { id: 'RL_W_U_'+Date.now(), currency: Currency.USD, amount: refundUsd, type: 'CREDIT', description: 'Withdrawal Refund (Rejected)', timestamp: new Date().toISOString() };
-            const diamondLog = { id: 'RL_W_D_'+Date.now(), currency: Currency.DIAMOND, amount: refundDiamonds, type: 'CREDIT', description: 'Fee Refund (Rejected)', timestamp: new Date().toISOString() };
-            
-            const updatedUser = {
-              ...u,
-              balances: { 
-                ...u.balances, 
-                [Currency.USD]: (u.balances[Currency.USD] || 0) + refundUsd,
-                [Currency.DIAMOND]: (u.balances[Currency.DIAMOND] || 0) + refundDiamonds 
-              },
-              logs: [usdLog, diamondLog, ...(u.logs || [])].slice(0, 50)
-            };
-            
-            if (store.user && store.user.id === u.id) {
-               setTimeout(() => store.setUser(updatedUser), 0);
-            }
-            
-            return updatedUser;
-          }
-          return u;
-      }));
-    }
-    
-    setActiveWithdrawal(null);
-    setWithdrawalRemark('');
-    alert(`Withdrawal marked as ${status}. Funds ${status === 'REJECTED' ? 'refunded (USD + Diamonds)' : 'released'}.`);
+    try {
+      await api.patch(`/api/admin/withdrawals/${activeWithdrawal._id || activeWithdrawal.id}`, { status, remarks: withdrawalRemark });
+      setWithdrawals((prev: any[]) => prev.map((w: any) =>
+        (w._id || w.id) === (activeWithdrawal._id || activeWithdrawal.id) ? { ...w, status, remarks: withdrawalRemark } : w
+      ));
+      setActiveWithdrawal(null);
+      setWithdrawalRemark('');
+      alert(`Withdrawal ${status}. ${status === 'REJECTED' ? 'Balance refunded automatically.' : ''}`);
+    } catch (e: any) { alert(e.response?.data?.error || 'Error'); }
   };
 
   const copyToClipboard = (text: string) => {
@@ -212,12 +198,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ store }) => {
               <div className="space-y-2">
                   <h3 className="text-[10px] font-black uppercase text-slate-500 ml-1">Existing Tasks</h3>
                   {tasks.map((t: any) => (
-                      <div key={t.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-md">
+                      <div key={t._id || t.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center shadow-md">
                           <div className="flex flex-col">
                             <span className="text-sm font-bold text-slate-200">{t.title}</span>
-                            <span className="text-[10px] text-indigo-400 font-mono">Rewards: {t.rewards.coin}C / ${t.rewards.usd}U / +{t.rewards.speed}S</span>
+                            <span className="text-[10px] text-indigo-400 font-mono">Rewards: {t.rewards?.coin || 0}C / ${t.rewards?.usd || 0}U / +{t.rewards?.speed || 0}S</span>
                           </div>
-                          <button onClick={() => setTasks(tasks.filter((x: any) => x.id !== t.id))} className="text-red-500 p-2 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                          <button onClick={async () => {
+                            try { await api.delete(`/api/admin/tasks/${t._id || t.id}`); setTasks(tasks.filter((x: any) => (x._id || x.id) !== (t._id || t.id))); }
+                            catch(e: any) { alert(e.response?.data?.error || 'Error'); }
+                          }} className="text-red-500 p-2 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={18}/></button>
                       </div>
                   ))}
               </div>
@@ -237,7 +226,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ store }) => {
                     <div className="text-center py-12 text-slate-600 text-xs italic bg-slate-900/50 rounded-2xl border border-dashed border-slate-800">No active payout requests.</div>
                   ) : (
                     withdrawals.filter((w: any) => w.status === 'PENDING').map((w: any) => (
-                        <div key={w.id} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl animate-in slide-in-from-bottom-4 duration-500">
+                        <div key={w._id || w.id} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl">
                             <div className="flex justify-between items-start mb-5">
                                 <div className="space-y-1">
                                     <p className="font-black text-white text-xl tracking-tighter">${w.amountUsd} USD</p>
@@ -245,16 +234,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ store }) => {
                                       <p className="text-[10px] text-slate-500 font-mono truncate max-w-[140px]">{w.walletAddress}</p>
                                       <button onClick={() => copyToClipboard(w.walletAddress)} className="text-indigo-400 p-1 hover:bg-indigo-400/10 rounded transition-colors"><Copy size={12}/></button>
                                     </div>
-                                    <p className="text-[9px] text-slate-600 font-bold italic">Diamonds Fee Collected: {w.feeAmount}💎</p>
+                                    <p className="text-[9px] text-slate-600 font-bold italic">Fee: {w.feeAmount}💎 · @{w.username}</p>
                                 </div>
-                                <button onClick={() => setActiveWithdrawal(activeWithdrawal?.id === w.id ? null : w)} className="bg-indigo-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20 active:scale-95">MANAGE</button>
+                                <button onClick={() => setActiveWithdrawal(activeWithdrawal?._id === w._id ? null : w)} className="bg-indigo-600 px-5 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20 active:scale-95">MANAGE</button>
                             </div>
-                            {activeWithdrawal?.id === w.id && (
-                                <div className="pt-4 border-t border-slate-800 flex flex-col gap-4 animate-in fade-in duration-300">
+                            {activeWithdrawal?._id === w._id && (
+                                <div className="pt-4 border-t border-slate-800 flex flex-col gap-4">
                                     <InputGroup label="Transaction Remark / Hash" value={withdrawalRemark} onChange={setWithdrawalRemark} />
                                     <div className="grid grid-cols-2 gap-3">
                                         <button onClick={() => finalizeWithdrawal('APPROVED')} className="bg-green-600 py-3 rounded-xl font-bold text-xs shadow-lg shadow-green-600/30 flex items-center justify-center gap-2"><CheckCircle size={14}/> APPROVE</button>
-                                        <button onClick={() => finalizeWithdrawal('REJECTED')} className="bg-red-600 py-3 rounded-xl font-bold text-xs shadow-lg shadow-green-600/30 flex items-center justify-center gap-2"><XCircle size={14}/> REJECT (REFUND)</button>
+                                        <button onClick={() => finalizeWithdrawal('REJECTED')} className="bg-red-600 py-3 rounded-xl font-bold text-xs shadow-lg shadow-red-600/30 flex items-center justify-center gap-2"><XCircle size={14}/> REJECT+REFUND</button>
                                     </div>
                                 </div>
                             )}

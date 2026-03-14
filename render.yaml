@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: minbot-backend
+    env: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_USERNAME
+        value: mingykfreebot
+      - key: MINI_APP_URL
+        value: https://t.me/mingykfreebot/ggyykk
+      - key: ADMIN_SECRET
+        sync: false
+      - key: JWT_SECRET
+        sync: false

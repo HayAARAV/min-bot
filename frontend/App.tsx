@@ -8,7 +8,6 @@ import {
   User as UserIcon, 
   LayoutDashboard,
   Zap,
-  History
 } from 'lucide-react';
 
 import HomePage from './pages/HomePage';
@@ -25,7 +24,32 @@ const App: React.FC = () => {
   const store = useAppStore();
   const [activeTab, setActiveTab] = useState<'home' | 'tasks' | 'wallet' | 'profile' | 'news' | 'support' | 'airdrop' | 'admin' | 'logs'>('home');
 
-  if (!store.user) return <div className="flex items-center justify-center h-screen bg-slate-950 text-white font-bold tracking-widest animate-pulse">GYK MINING BOT</div>;
+  // Loading state while authenticating with backend
+  if (store.loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-950">
+        <div className="text-5xl mb-5 animate-bounce">⛏️</div>
+        <p className="text-indigo-400 font-black text-xl tracking-widest animate-pulse">GYK MINING BOT</p>
+        <p className="text-slate-500 text-xs mt-3">Connecting to server...</p>
+      </div>
+    );
+  }
+
+  if (!store.user) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-950">
+        <div className="text-5xl mb-5">⚠️</div>
+        <p className="text-red-400 font-bold text-lg">Failed to load</p>
+        <p className="text-slate-500 text-xs mt-2">Check your connection and refresh</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-6 bg-indigo-600 px-6 py-3 rounded-xl font-bold text-sm"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const renderContent = () => {
     switch (activeTab) {
