@@ -45,12 +45,23 @@ export const useAppStore = () => {
         const stored = localStorage.getItem('gyk_token');
 
         if (stored) {
-          // Refresh user from server
-          const { data } = await api.get('/api/users/me');
-          // Map server user to local user type
-          setUser(mapServerUser(data));
+          try {
+            // Try to use stored token
+            const { data } = await api.get('/api/users/me');
+            setUser(mapServerUser(data));
+          } catch (tokenErr: any) {
+            // Token is bad/expired — clear it and re-auth
+            console.warn('Stored token invalid, re-authenticating...');
+            localStorage.removeItem('gyk_token');
+            const { data } = await api.post('/api/auth/telegram', {
+              initData: initData || 'dev_mode',
+              sponsorId
+            });
+            localStorage.setItem('gyk_token', data.token);
+            setUser(mapServerUser(data.user));
+          }
         } else {
-          // Authenticate via Telegram or dev mode
+          // No token — authenticate via Telegram or dev mode
           const { data } = await api.post('/api/auth/telegram', {
             initData: initData || 'dev_mode',
             sponsorId
@@ -70,20 +81,8 @@ export const useAppStore = () => {
         const { data: wData } = await api.get('/api/withdrawals/mine');
         setWithdrawals(wData);
 
-      } catch (err) {
-        console.error('Init error:', err);
-        // Fallback to local dev user
-        const fallback: User = {
-          id: 'dev_local', telegramId: '00000000', username: 'dev_user', fullName: 'Dev User',
-          ipAddress: '127.0.0.1', sponsorId: null, joinedAt: getGMTTime(),
-          balances: { [Currency.COIN]: 50, [Currency.USD]: 0, [Currency.DIAMOND]: 0, [Currency.STAR]: 0 },
-          miningSpeed: 1,
-          miningSession: { startTime: null, isActive: false, lastMinedAmount: 0 },
-          stats: { totalReferrals: 0, totalTeamSize: 0, dailyLogins: 0, tasksCompleted: 0 },
-          lastDailyLogin: null, logs: []
-        };
-        setUser(fallback);
-        setTasks(MOCK_TASKS as Task[]);
+      } catch (err: any) {
+        console.error('Init error:', err?.response?.data || err?.message || err);
       } finally {
         setLoading(false);
       }
