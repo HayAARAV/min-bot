@@ -12,6 +12,7 @@ const configRoutes = require('./routes/config');
 const adminRoutes = require('./routes/admin');
 const { startBot } = require('./bot/bot');
 const { startDailyReset } = require('./cron/dailyReset');
+const { startKeepAlive } = require('./cron/keepAlive');
 
 const app = express();
 
@@ -41,6 +42,9 @@ mongoose.connect(process.env.MONGO_URI)
 
         // Start daily cron
         startDailyReset();
+
+        // Keep-alive ping (prevents Render free tier from sleeping)
+        startKeepAlive();
 
         // Start server
         const PORT = process.env.PORT || 5000;
