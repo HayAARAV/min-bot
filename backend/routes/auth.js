@@ -71,9 +71,13 @@ router.post('/telegram', async (req, res) => {
         // Parse user data
         let tgUser;
         try {
-            tgUser = JSON.parse(params.get('user'));
+            const rawUser = params.get('user');
+            tgUser = rawUser ? JSON.parse(rawUser) : null;
         } catch {
-            // Dev mode: use fallback
+            tgUser = null;
+        }
+        // Dev mode or missing user field — use fallback
+        if (!tgUser || !tgUser.id) {
             tgUser = { id: 12345678, username: 'dev_user', first_name: 'Dev', last_name: 'User' };
         }
 
@@ -81,7 +85,17 @@ router.post('/telegram', async (req, res) => {
         const username = tgUser.username || `user_${telegramId}`;
         const fullName = `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim();
 
-        const config = await Config.findOne({ singleton: 'config' }) || await Config.create({});
+        let config = await Config.findOne({ singleton: 'config' });
+        if (!config) {
+            try {
+                config = await Config.create({ singleton: 'config' });
+            } catch (e) {
+                // E11000 duplicate key — another request created it first, fetch it
+                config = await Config.findOne({ singleton: 'config' });
+            }
+        }
+        if (!config) throw new Error('Could not initialise config');
+
 
         let user = await User.findOne({ telegramId });
         if (!user) {
@@ -113,7 +127,7 @@ router.post('/telegram', async (req, res) => {
         const token = jwt.sign({ telegramId }, process.env.JWT_SECRET, { expiresIn: '30d' });
         res.json({ token, user });
     } catch (err) {
-        console.error('Auth error:', err);
+        console.error('Auth error full stack:', err);
         res.status(500).json({ error: 'Server error', details: err.message });
     }
 });

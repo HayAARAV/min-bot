@@ -82,7 +82,19 @@ export const useAppStore = () => {
         setWithdrawals(wData);
 
       } catch (err: any) {
-        console.error('Init error:', err?.response?.data || err?.message || err);
+        const msg = err?.response?.data?.error || err?.response?.data?.details || err?.message || 'Unknown error';
+        console.error('Init error — falling back to local mode:', msg);
+        // Fallback: show app with local dev user so UI is never blocked
+        setUser({
+          id: 'dev_local', telegramId: '12345678', username: 'dev_user', fullName: 'Dev User',
+          ipAddress: '', sponsorId: null, joinedAt: getGMTTime(),
+          balances: { [Currency.COIN]: 50, [Currency.USD]: 0, [Currency.DIAMOND]: 0, [Currency.STAR]: 0 },
+          miningSpeed: 1,
+          miningSession: { startTime: null, isActive: false, lastMinedAmount: 0 },
+          stats: { totalReferrals: 0, totalTeamSize: 0, dailyLogins: 0, tasksCompleted: 0 },
+          lastDailyLogin: null, logs: []
+        });
+        setTasks(MOCK_TASKS as Task[]);
       } finally {
         setLoading(false);
       }

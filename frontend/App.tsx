@@ -1,12 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from './store/useAppStore';
 import { 
   Home, 
   Wallet, 
   CheckSquare, 
   User as UserIcon, 
-  LayoutDashboard,
   Zap,
 } from 'lucide-react';
 
@@ -18,13 +17,42 @@ import NewsPage from './pages/NewsPage';
 import SupportPage from './pages/SupportPage';
 import AirdropPage from './pages/AirdropPage';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminLoginPage from './pages/AdminLoginPage';
 import LogsPage from './pages/LogsPage';
+
+// ── Admin route detection via URL hash ──────────────────────────────────────
+// Admin panel is at:  /#gyk-admin-panel
+// This URL is NOT shown anywhere in the app — it's a secret link for admins
+const ADMIN_HASH = '#gyk-admin-panel';
+
+const isAdminRoute = () => window.location.hash === ADMIN_HASH;
 
 const App: React.FC = () => {
   const store = useAppStore();
-  const [activeTab, setActiveTab] = useState<'home' | 'tasks' | 'wallet' | 'profile' | 'news' | 'support' | 'airdrop' | 'admin' | 'logs'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'tasks' | 'wallet' | 'profile' | 'news' | 'support' | 'airdrop' | 'logs'>('home');
+  const [isAdmin, setIsAdmin] = useState(isAdminRoute());
+  const [adminAuthed, setAdminAuthed] = useState(false);
 
-  // Loading state while authenticating with backend
+  // Listen for hash changes (e.g. back button)
+  useEffect(() => {
+    const onHashChange = () => setIsAdmin(isAdminRoute());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  // ── Admin route → show login/dashboard ──────────────────────────────────
+  if (isAdmin) {
+    if (!adminAuthed) {
+      return <AdminLoginPage onSuccess={() => setAdminAuthed(true)} />;
+    }
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <AdminDashboard store={store} />
+      </div>
+    );
+  }
+
+  // ── Loading ──────────────────────────────────────────────────────────────
   if (store.loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-950">
@@ -53,16 +81,15 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'home': return <HomePage store={store} onNews={() => setActiveTab('news')} />;
-      case 'tasks': return <TasksPage store={store} />;
-      case 'wallet': return <WalletPage store={store} onLogs={() => setActiveTab('logs')} />;
+      case 'home':    return <HomePage store={store} onNews={() => setActiveTab('news')} />;
+      case 'tasks':   return <TasksPage store={store} />;
+      case 'wallet':  return <WalletPage store={store} onLogs={() => setActiveTab('logs')} />;
       case 'profile': return <ProfilePage store={store} />;
-      case 'news': return <NewsPage store={store} />;
+      case 'news':    return <NewsPage store={store} />;
       case 'support': return <SupportPage store={store} />;
       case 'airdrop': return <AirdropPage store={store} />;
-      case 'admin': return <AdminDashboard store={store} />;
-      case 'logs': return <LogsPage store={store} />;
-      default: return <HomePage store={store} onNews={() => setActiveTab('news')} />;
+      case 'logs':    return <LogsPage store={store} />;
+      default:        return <HomePage store={store} onNews={() => setActiveTab('news')} />;
     }
   };
 
@@ -72,19 +99,13 @@ const App: React.FC = () => {
         {renderContent()}
       </div>
 
+      {/* Bottom Nav — NO Admin button here */}
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 flex justify-around py-3 px-2 z-50">
-        <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={<Home size={20} />} label="Home" />
-        <NavButton active={activeTab === 'tasks'} onClick={() => setActiveTab('tasks')} icon={<CheckSquare size={20} />} label="Tasks" />
-        <NavButton active={activeTab === 'wallet'} onClick={() => setActiveTab('wallet')} icon={<Wallet size={20} />} label="Wallet" />
-        <NavButton active={activeTab === 'airdrop'} onClick={() => setActiveTab('airdrop')} icon={<Zap size={20} />} label="Airdrop" />
-        <NavButton active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} icon={<UserIcon size={20} />} label="Profile" />
-        <button 
-          onClick={() => setActiveTab('admin')}
-          className={`flex flex-col items-center justify-center transition-all duration-200 ${activeTab === 'admin' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
-        >
-          <LayoutDashboard size={20} />
-          <span className="text-[10px] mt-1">Admin</span>
-        </button>
+        <NavButton active={activeTab === 'home'}    onClick={() => setActiveTab('home')}    icon={<Home size={20} />}        label="Home" />
+        <NavButton active={activeTab === 'tasks'}   onClick={() => setActiveTab('tasks')}   icon={<CheckSquare size={20} />} label="Tasks" />
+        <NavButton active={activeTab === 'wallet'}  onClick={() => setActiveTab('wallet')}  icon={<Wallet size={20} />}      label="Wallet" />
+        <NavButton active={activeTab === 'airdrop'} onClick={() => setActiveTab('airdrop')} icon={<Zap size={20} />}         label="Airdrop" />
+        <NavButton active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} icon={<UserIcon size={20} />}    label="Profile" />
       </nav>
     </div>
   );
