@@ -69,11 +69,11 @@ function startBot() {
             }
 
             const welcomeText = sponsorId
-                ? `🎉 *Welcome to GYK Mining Bot, @${username}!*\n\nYou joined via a referral link. Your sponsor will receive rewards!\n\n⛏️ Your welcome bonus: *${config.welcomeBonus.coin} ${config.coinName}*\n🚀 Default mining speed: *${config.welcomeBonus.speed} coins/hr*\n\nStart mining and earn real rewards!`
-                : `🎉 *Welcome to GYK Mining Bot, @${username}!*\n\n⛏️ Start mining ${config.coinName} coins and earn real money!\n\nYour welcome bonus: *${config.welcomeBonus.coin} ${config.coinName}*\n🚀 Mining speed: *${config.welcomeBonus.speed} coins/hr*`;
+                ? `🎉 <b>Welcome to GYK Mining Bot, ${fullName}!</b>\n\nYou joined via a referral link. Your sponsor will receive rewards!\n\n⛏️ Your welcome bonus: <b>${config.welcomeBonus.coin} ${config.coinName}</b>\n🚀 Default mining speed: <b>${config.welcomeBonus.speed} coins/hr</b>\n\nStart mining and earn real rewards!`
+                : `🎉 <b>Welcome to GYK Mining Bot, ${fullName}!</b>\n\n⛏️ Start mining ${config.coinName} coins and earn real money!\n\nYour welcome bonus: <b>${config.welcomeBonus.coin} ${config.coinName}</b>\n🚀 Mining speed: <b>${config.welcomeBonus.speed} coins/hr</b>`;
 
             await bot.sendMessage(chatId, welcomeText, {
-                parse_mode: 'Markdown',
+                parse_mode: 'HTML',
                 reply_markup: {
                     inline_keyboard: [[
                         {
@@ -92,11 +92,11 @@ function startBot() {
     // Handle /help
     bot.onText(/\/help/, async (msg) => {
         await bot.sendMessage(msg.chat.id,
-            `📌 *GYK Mining Bot Help*\n\n` +
+            `📌 <b>GYK Mining Bot Help</b>\n\n` +
             `/start - Open the mining app\n` +
             `/ref - Get your referral link\n\n` +
             `For support, use the Support page inside the app.`,
-            { parse_mode: 'Markdown' }
+            { parse_mode: 'HTML' }
         );
     });
 
@@ -105,8 +105,8 @@ function startBot() {
         const telegramId = String(msg.from.id);
         const refLink = `https://t.me/${process.env.BOT_USERNAME}?start=ref_${telegramId}`;
         await bot.sendMessage(msg.chat.id,
-            `🔗 *Your Referral Link:*\n\n\`${refLink}\`\n\nShare this link and earn rewards when friends join!`,
-            { parse_mode: 'Markdown' }
+            `🔗 <b>Your Referral Link:</b>\n\n<code>${refLink}</code>\n\nShare this link and earn rewards when friends join!`,
+            { parse_mode: 'HTML' }
         );
     });
 
